@@ -53,6 +53,19 @@
     // terasa masuk akal tanpa membocorkan nilai akhirnya.
     var ceiling = Math.max(9, Math.ceil(winner.count * 1.4));
 
+    // Semua angka acak dipadankan panjangnya dengan angka terpanjang. Selain
+    // lebih rapi dibaca, ini menghindari reflow: teks yang berubah lebar tiap
+    // pergantian angka memaksa label dihitung ulang puluhan kali per detik.
+    var digits = String(ceiling).length;
+
+    function pad(n) {
+        var s = String(n);
+        while (s.length < digits) {
+            s = '0' + s;
+        }
+        return s;
+    }
+
     // --- Babak 1: kunci papan -------------------------------------------
     board.classList.add('is-locked');
     lock.hidden = false;
@@ -63,8 +76,57 @@
     lock.addEventListener('click', function () {
         lock.classList.add('is-opening');
         lock.disabled = true;
-        window.setTimeout(startRolling, reduceMotion ? 0 : 500);
+        whenPhotosReady(function () {
+            window.setTimeout(startRolling, reduceMotion ? 0 : 500);
+        });
     }, { once: true });
+
+    /**
+     * Menunggu semua foto selesai dimuat sebelum babak animasi dimulai.
+     *
+     * Di localhost foto sudah ada di disk, jadi tidak pernah terasa. Di hosting,
+     * foto bisa saja masih diunduh atau di-decode saat animasi sudah berjalan —
+     * dan decode gambar terjadi di thread utama, jadi hasilnya patah-patah tepat
+     * di detik pertama. Ditunggu maksimal 2 detik supaya satu foto yang gagal
+     * dimuat tidak menyandera seluruh acara.
+     */
+    function whenPhotosReady(done) {
+        var images = Array.prototype.slice.call(grid.querySelectorAll('img'));
+        var pending = images.length;
+        var finished = false;
+
+        function tick() {
+            if (finished) {
+                return;
+            }
+            pending -= 1;
+            if (pending <= 0) {
+                finished = true;
+                done();
+            }
+        }
+
+        images.forEach(function (img) {
+            if (img.complete && img.naturalWidth) {
+                tick();
+            } else {
+                img.addEventListener('load', tick, { once: true });
+                img.addEventListener('error', tick, { once: true });
+            }
+        });
+
+        if (!images.length) {
+            done();
+            return;
+        }
+
+        window.setTimeout(function () {
+            if (!finished) {
+                finished = true;
+                done();
+            }
+        }, 2000);
+    }
 
     // --- Babak 2: kocok angka -------------------------------------------
     function startRolling() {
@@ -92,7 +154,7 @@
             // tersendat-sendat di akhir — itu yang bikin kocokan terasa berhenti
             // sendiri, bukan dipotong.
             entries.forEach(function (entry) {
-                entry.countEl.textContent = Math.floor(Math.random() * ceiling);
+                entry.countEl.textContent = pad(Math.floor(Math.random() * ceiling));
             });
 
             if (progress < 1) {

@@ -153,12 +153,16 @@
     /* ==== Babak 1: terkunci ============================================ */
     /* Papan diburamkan, bukan disembunyikan: penonton tahu ada sepuluh kandidat
        di baliknya, tapi belum bisa membaca satu angka pun. */
+    /* `filter: blur()` sengaja TIDAK ikut ditransisikan. Blur yang diam cuma
+       dirasterisasi sekali, tapi blur yang dianimasikan memaksa sepuluh foto
+       dirasterisasi ulang tiap frame — itu yang bikin patah-patah di layar
+       besar. Blurnya lepas seketika, tertutup oleh gembok yang memudar. */
     .is-locked .result-grid {
-        filter: blur(10px) saturate(0.85);
+        filter: blur(8px);
         transform: scale(0.98);
         opacity: 0.75;
         pointer-events: none;
-        transition: filter .8s ease, transform .8s ease, opacity .8s ease;
+        transition: transform .8s ease, opacity .8s ease;
     }
     .result-lock {
         position: absolute;
@@ -212,7 +216,10 @@
 
     /* ==== Babak 2: mengocok ============================================ */
     .is-rolling .result-count { color: #fff; opacity: .92; }
-    .is-rolling .result-card { animation: card-jitter .18s linear infinite; }
+    .is-rolling .result-card {
+        animation: card-jitter .18s linear infinite;
+        will-change: transform;
+    }
     /* Tiap kartu digeser fasenya lewat delay negatif supaya getarnya tidak
        serempak — kalau serempak, yang bergetar terbaca sebagai papannya. */
     .is-rolling .col:nth-child(3n)   .result-card { animation-delay: -.06s; }
@@ -233,13 +240,18 @@
     /* ==== Babak 3: terbuka ============================================= */
     /* Sembilan yang kalah memudar dan mengecil; stagger diatur dari JS lewat
        custom property --i supaya urutan padamnya terbaca sebagai gelombang. */
+    /* Hanya opacity dan transform yang dianimasikan: dua-duanya bisa dikerjakan
+       compositor tanpa menggambar ulang isi kartu. Versi sebelumnya ikut
+       menganimasikan `filter: blur()` pada sembilan kartu sekaligus — cantik di
+       laptop, tersendat di layar besar. */
     .col.is-out {
         animation: card-out .55s ease forwards;
         animation-delay: calc(var(--i, 0) * .07s);
         pointer-events: none;
+        will-change: transform, opacity;
     }
     @keyframes card-out {
-        to { opacity: 0; transform: scale(0.86) translateY(14px); filter: blur(6px); }
+        to { opacity: 0; transform: scale(0.86) translateY(14px); }
     }
 
     .result-final { display: none; }
