@@ -158,7 +158,9 @@
             });
 
             if (progress < 1) {
-                var delay = 40 + Math.pow(progress, 3) * 260;
+                // Mulai dari 65ms (±15 pergantian per detik). Lebih cepat dari
+                // itu tidak terbaca mata, tapi tetap dibayar mesin yang lemah.
+                var delay = 65 + Math.pow(progress, 3) * 260;
                 window.setTimeout(function () {
                     window.requestAnimationFrame(frame);
                 }, delay);
@@ -181,21 +183,10 @@
 
     // --- Babak 3: buka pemenang -----------------------------------------
     function reveal() {
-        // Yang kalah dipadamkan lebih dulu, berurutan dari perolehan terkecil
-        // supaya gelombangnya bergerak naik menuju pemenang.
-        losers.slice().reverse().forEach(function (entry, i) {
-            entry.col.style.setProperty('--i', i);
-            entry.col.classList.add('is-out');
-        });
-
-        var afterFade = reduceMotion ? 0 : 550 + losers.length * 70;
-
-        window.setTimeout(function () {
-            // Pemenang ikut dipadamkan terakhir — kartunya "pindah" ke panggung,
-            // jadi versi di grid tidak boleh ikut terlihat.
-            winner.col.style.setProperty('--i', 0);
-            winner.col.classList.add('is-out');
-        }, afterFade);
+        // Seluruh grid dipadamkan sekaligus sebagai satu elemen, bukan sepuluh
+        // kartu yang dianimasikan sendiri-sendiri. Kartu pemenang tetap "pindah"
+        // ke panggung karena yang muncul di sana adalah salinannya.
+        grid.classList.add('is-out');
 
         window.setTimeout(function () {
             grid.style.display = 'none';
@@ -206,6 +197,6 @@
             });
 
             finalStage.classList.add('is-shown');
-        }, afterFade + (reduceMotion ? 0 : 550));
+        }, reduceMotion ? 0 : 520);
     }
 })();

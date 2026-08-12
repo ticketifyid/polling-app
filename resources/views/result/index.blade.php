@@ -54,6 +54,17 @@
         padding: 24px;
     }
 
+    /* Panel hasil sengaja TIDAK memakai backdrop-filter, beda dari panel di
+       halaman voter. Blur latar itu dihitung ulang oleh GPU setiap kali ada
+       yang berubah di dalamnya, dan biayanya naik mengikuti luas layar — di
+       LED besar inilah sumber patah-patahnya. Panelnya tetap tembus pandang,
+       hanya saja lewat warna, bukan blur: nyaris gratis untuk digambar. */
+    .result-board.floating-panel {
+        background: rgba(255, 255, 255, 0.24);
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+    }
+
     /* Tinggi kartu lahir dari lebarnya (rasio 3:4), jadi satu-satunya cara
        memendekkan papan tanpa menyempitkan panel adalah membatasi lebar kartu
        lalu menengahkannya di dalam kolom. Sisa ruang kolom justru jadi jarak
@@ -153,16 +164,14 @@
     /* ==== Babak 1: terkunci ============================================ */
     /* Papan diburamkan, bukan disembunyikan: penonton tahu ada sepuluh kandidat
        di baliknya, tapi belum bisa membaca satu angka pun. */
-    /* `filter: blur()` sengaja TIDAK ikut ditransisikan. Blur yang diam cuma
-       dirasterisasi sekali, tapi blur yang dianimasikan memaksa sepuluh foto
-       dirasterisasi ulang tiap frame — itu yang bikin patah-patah di layar
-       besar. Blurnya lepas seketika, tertutup oleh gembok yang memudar. */
+    /* Angka sudah disamarkan jadi "??" oleh result.js, jadi papan tidak perlu
+       diburamkan sama sekali — cukup diredupkan. `filter: blur()` di atas
+       sepuluh foto adalah efek termahal di halaman ini; opacity dikerjakan
+       compositor tanpa menggambar ulang apa pun. */
     .is-locked .result-grid {
-        filter: blur(8px);
-        transform: scale(0.98);
-        opacity: 0.75;
+        opacity: 0.3;
         pointer-events: none;
-        transition: transform .8s ease, opacity .8s ease;
+        transition: opacity .5s ease;
     }
     .result-lock {
         position: absolute;
@@ -202,10 +211,12 @@
     }
     .result-lock:hover .result-lock-icon { transform: scale(1.06); }
     .result-lock:focus-visible { box-shadow: var(--ring); outline: none; }
-    /* Denyut pelan supaya penonton paham gemboknya bisa diklik. */
+    /* Denyut pelan supaya penonton paham gemboknya bisa diklik. Hanya transform
+       yang bergerak — versi sebelumnya ikut menganimasikan box-shadow, dan
+       bayangan harus digambar ulang tiap frame. */
     @keyframes lock-breathe {
-        0%, 100% { transform: scale(1);    box-shadow: 0 18px 40px -12px rgba(16, 24, 40, 0.55); }
-        50%      { transform: scale(1.07); box-shadow: 0 22px 52px -12px rgba(46, 107, 212, 0.65); }
+        0%, 100% { transform: scale(1); }
+        50%      { transform: scale(1.07); }
     }
     /* Gembok terbuka sesaat sebelum angka mulai berputar. */
     .result-lock.is-opening {
@@ -215,19 +226,18 @@
     .result-lock.is-opening .result-lock-icon { animation: none; transform: scale(1.5) rotate(-12deg); }
 
     /* ==== Babak 2: mengocok ============================================ */
-    .is-rolling .result-count { color: #fff; opacity: .92; }
-    .is-rolling .result-card {
-        animation: card-jitter .18s linear infinite;
-        will-change: transform;
+    /* Getar per kartu dihapus: sepuluh elemen yang bergerak terus-menerus
+       selama tiga detik adalah beban tetap yang paling terasa di mesin lemah.
+       Ketegangan babak ini toh sudah dibawa oleh angka yang berputar. Sebagai
+       gantinya papan diberi satu denyut sorot — satu elemen, bukan sepuluh. */
+    .is-rolling .result-count { color: #fff; }
+    .is-rolling .result-board,
+    .result-board.is-rolling {
+        animation: board-pulse 1.1s ease-in-out infinite;
     }
-    /* Tiap kartu digeser fasenya lewat delay negatif supaya getarnya tidak
-       serempak — kalau serempak, yang bergetar terbaca sebagai papannya. */
-    .is-rolling .col:nth-child(3n)   .result-card { animation-delay: -.06s; }
-    .is-rolling .col:nth-child(3n+1) .result-card { animation-delay: -.12s; }
-    @keyframes card-jitter {
-        0%, 100% { transform: translate3d(0, 0, 0); }
-        25%      { transform: translate3d(-1px, 1px, 0); }
-        75%      { transform: translate3d(1px, -1px, 0); }
+    @keyframes board-pulse {
+        0%, 100% { background-color: rgba(255, 255, 255, 0.24); }
+        50%      { background-color: rgba(255, 255, 255, 0.34); }
     }
     /* Angka mendarat di nilai aslinya — sekali sentak, lalu diam. */
     .result-count.is-landed { animation: count-pop .45s cubic-bezier(.2, 1.4, .4, 1); }
@@ -240,18 +250,14 @@
     /* ==== Babak 3: terbuka ============================================= */
     /* Sembilan yang kalah memudar dan mengecil; stagger diatur dari JS lewat
        custom property --i supaya urutan padamnya terbaca sebagai gelombang. */
-    /* Hanya opacity dan transform yang dianimasikan: dua-duanya bisa dikerjakan
-       compositor tanpa menggambar ulang isi kartu. Versi sebelumnya ikut
-       menganimasikan `filter: blur()` pada sembilan kartu sekaligus — cantik di
-       laptop, tersendat di layar besar. */
-    .col.is-out {
-        animation: card-out .55s ease forwards;
-        animation-delay: calc(var(--i, 0) * .07s);
+    /* Sembilan kartu tidak lagi dipadamkan satu per satu. Stagger itu berarti
+       sembilan animasi berjalan bersamaan di sembilan layer terpisah; sekarang
+       seluruh grid memudar sebagai SATU elemen. Efek yang dilihat penonton
+       hampir sama, biayanya sepersembilan. */
+    .result-grid.is-out {
+        opacity: 0;
+        transition: opacity .5s ease;
         pointer-events: none;
-        will-change: transform, opacity;
-    }
-    @keyframes card-out {
-        to { opacity: 0; transform: scale(0.86) translateY(14px); }
     }
 
     .result-final { display: none; }
@@ -338,10 +344,10 @@
        babaknya tetap jalan, cuma tanpa animasi. */
     @media (prefers-reduced-motion: reduce) {
         .result-lock-icon, .result-spotlight, .result-crown, .result-runners,
-        .col.is-out, .is-rolling .result-card, .result-count.is-landed {
+        .result-board.is-rolling, .result-count.is-landed {
             animation: none !important;
         }
-        .col.is-out { opacity: 0; }
+        .result-grid.is-out { transition: none; }
     }
 </style>
 @endpush
