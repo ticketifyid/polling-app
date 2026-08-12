@@ -1,0 +1,149 @@
+/**
+ * Pembuka hasil untuk layar videotron.
+ *
+ * Tiga babak, dijalankan berurutan setelah gembok diklik:
+ *   1. terkunci — angka diganti "??" supaya tidak bocor sebelum acara mulai
+ *   2. mengocok — angka berputar acak, melambat, lalu mendarat di nilai asli
+ *   3. terbuka  — sembilan kartu memudar, satu terfavorit membesar ke tengah,
+ *                 sembilan sisanya muncul lagi sebagai satu baris kecil
+ *
+ * Semuanya berjalan di sisi klien dari data yang sudah ada di DOM: skrip ini
+ * tidak pernah meminta ulang ke server, jadi angka yang mendarat pasti sama
+ * dengan angka yang dirender Blade.
+ */
+(function () {
+    'use strict';
+
+    var board = document.getElementById('result-board');
+    var lock = document.getElementById('result-lock');
+    var grid = document.getElementById('result-grid');
+    var finalStage = document.getElementById('result-final');
+    var spotlight = document.getElementById('result-spotlight');
+    var runners = document.getElementById('result-runners');
+
+    if (!board || !lock || !grid || !finalStage || !spotlight || !runners) {
+        return;
+    }
+
+    var cols = Array.prototype.slice.call(grid.querySelectorAll('.col'));
+    if (!cols.length) {
+        return;
+    }
+
+    var reduceMotion = window.matchMedia
+        && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // Kandidat diurutkan ulang di sini, bukan mengandalkan urutan render, supaya
+    // pemenangnya tetap benar kalau suatu saat controller mengubah urutannya.
+    var entries = cols.map(function (col) {
+        var countEl = col.querySelector('.result-count');
+        return {
+            col: col,
+            countEl: countEl,
+            count: parseInt(countEl.getAttribute('data-count'), 10) || 0
+        };
+    }).sort(function (a, b) {
+        return b.count - a.count;
+    });
+
+    var winner = entries[0];
+    var losers = entries.slice(1);
+
+    // Batas atas angka acak: sedikit di atas perolehan tertinggi supaya kocokan
+    // terasa masuk akal tanpa membocorkan nilai akhirnya.
+    var ceiling = Math.max(9, Math.ceil(winner.count * 1.4));
+
+    // --- Babak 1: kunci papan -------------------------------------------
+    board.classList.add('is-locked');
+    lock.hidden = false;
+    entries.forEach(function (entry) {
+        entry.countEl.textContent = '??';
+    });
+
+    lock.addEventListener('click', function () {
+        lock.classList.add('is-opening');
+        lock.disabled = true;
+        window.setTimeout(startRolling, reduceMotion ? 0 : 500);
+    }, { once: true });
+
+    // --- Babak 2: kocok angka -------------------------------------------
+    function startRolling() {
+        lock.hidden = true;
+        board.classList.remove('is-locked');
+
+        if (reduceMotion) {
+            landAll();
+            window.setTimeout(reveal, 600);
+            return;
+        }
+
+        board.classList.add('is-rolling');
+
+        var duration = 3200;
+        var started = null;
+
+        function frame(now) {
+            if (started === null) {
+                started = now;
+            }
+            var progress = Math.min((now - started) / duration, 1);
+
+            // Jeda antar pergantian angka melebar seiring waktu: cepat di awal,
+            // tersendat-sendat di akhir — itu yang bikin kocokan terasa berhenti
+            // sendiri, bukan dipotong.
+            entries.forEach(function (entry) {
+                entry.countEl.textContent = Math.floor(Math.random() * ceiling);
+            });
+
+            if (progress < 1) {
+                var delay = 40 + Math.pow(progress, 3) * 260;
+                window.setTimeout(function () {
+                    window.requestAnimationFrame(frame);
+                }, delay);
+            } else {
+                board.classList.remove('is-rolling');
+                landAll();
+                window.setTimeout(reveal, 1400);
+            }
+        }
+
+        window.requestAnimationFrame(frame);
+    }
+
+    function landAll() {
+        entries.forEach(function (entry) {
+            entry.countEl.textContent = entry.count;
+            entry.countEl.classList.add('is-landed');
+        });
+    }
+
+    // --- Babak 3: buka pemenang -----------------------------------------
+    function reveal() {
+        // Yang kalah dipadamkan lebih dulu, berurutan dari perolehan terkecil
+        // supaya gelombangnya bergerak naik menuju pemenang.
+        losers.slice().reverse().forEach(function (entry, i) {
+            entry.col.style.setProperty('--i', i);
+            entry.col.classList.add('is-out');
+        });
+
+        var afterFade = reduceMotion ? 0 : 550 + losers.length * 70;
+
+        window.setTimeout(function () {
+            // Pemenang ikut dipadamkan terakhir — kartunya "pindah" ke panggung,
+            // jadi versi di grid tidak boleh ikut terlihat.
+            winner.col.style.setProperty('--i', 0);
+            winner.col.classList.add('is-out');
+        }, afterFade);
+
+        window.setTimeout(function () {
+            grid.style.display = 'none';
+
+            spotlight.appendChild(winner.col.querySelector('.result-card').cloneNode(true));
+            losers.forEach(function (entry) {
+                runners.appendChild(entry.col.querySelector('.result-card').cloneNode(true));
+            });
+
+            finalStage.classList.add('is-shown');
+        }, afterFade + (reduceMotion ? 0 : 550));
+    }
+})();

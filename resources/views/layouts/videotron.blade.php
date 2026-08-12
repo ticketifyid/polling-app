@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <style>
         /* Layar hasil kini memakai palet dan latar yang sama dengan halaman
            voter (layouts/app.blade.php), bukan palet panel panitia — dua layar
@@ -85,5 +86,6 @@
 </head>
 <body>
     @yield('content')
+    @stack('scripts')
 </body>
 </html>

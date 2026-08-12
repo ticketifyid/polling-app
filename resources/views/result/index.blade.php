@@ -5,10 +5,19 @@
 @push('head')
 <style>
     /* Layar ini dibuat sepadan dengan step "pilih kandidat" di halaman voter:
-       kolom 1080px yang ditengahkan, panel kaca dengan padding sama, dan kartu
-       yang lebarnya lahir dari grid 5 kolom Bootstrap. Ukuran sengaja TIDAK
-       memakai satuan vh — panel setinggi layar menutupi logo sponsor di atas
-       dan tulisan "powered by" di bawah foto latar. */
+       kolom yang ditengahkan, panel kaca dengan padding sama, dan kartu yang
+       lebarnya lahir dari grid 5 kolom Bootstrap. Ukuran sengaja TIDAK memakai
+       satuan vh — panel setinggi layar menutupi logo sponsor di atas dan
+       tulisan "powered by" di bawah foto latar.
+
+       Halaman punya tiga babak yang dijalankan public/js/result.js:
+         1. terkunci  — angka disamarkan, gembok menutup papan
+         2. mengocok  — angka berputar acak lalu mendarat di nilai asli
+         3. terbuka   — sembilan kartu memudar, satu terfavorit membesar ke
+                        tengah, sisanya turun jadi satu baris kecil
+       Tanpa JavaScript, ketiganya tidak pernah aktif dan papan tampil apa
+       adanya — itu sebabnya keadaan awal di markup adalah keadaan akhir yang
+       bisa dibaca, bukan keadaan tersembunyi. */
     .result-screen {
         min-height: calc(100vh - (var(--space) * 2));
         display: flex;
@@ -22,13 +31,17 @@
         width: 100%;
         max-width: 1280px;
     }
+    /* .container Bootstrap berhenti di 1140px pada layar 1200–1399px, yang akan
+       memotong kolom 1280px di atas. Batasnya dilonggarkan supaya lebar kolom
+       yang menentukan, bukan breakpoint. */
+    .result-screen-wrap { max-width: 1360px; }
 
     /* Judul berdiri langsung di atas foto, jadi butuh bobot dan halo putih tipis
        supaya tetap terbaca di bagian latar yang ramai — sama seperti
        .voter-title di halaman voter. */
-    .result-head { margin-bottom: 24px; text-align: center; }
+    .result-head { margin-bottom: 18px; text-align: center; }
     .result-title {
-        font-size: 36px;
+        font-size: 32px;
         font-weight: 800;
         letter-spacing: -0.03em;
         line-height: 1.15;
@@ -36,15 +49,24 @@
         text-shadow: 0 1px 12px rgba(255, 255, 255, 0.95);
     }
 
-    /* .container Bootstrap berhenti di 1140px pada layar 1200–1399px, yang akan
-       memotong kolom 1280px di atas. Batasnya dilonggarkan supaya lebar kolom
-       yang menentukan, bukan breakpoint. */
-    .result-screen-wrap { max-width: 1360px; }
+    .result-board {
+        position: relative;
+        padding: 24px;
+    }
 
-    .result-board { padding: 32px; }
+    /* Tinggi kartu lahir dari lebarnya (rasio 3:4), jadi satu-satunya cara
+       memendekkan papan tanpa menyempitkan panel adalah membatasi lebar kartu
+       lalu menengahkannya di dalam kolom. Sisa ruang kolom justru jadi jarak
+       antar kartu — papan lebih pendek, logo sponsor di atas foto latar tidak
+       ketutupan, dan kartunya malah terasa lebih lega. */
+    .result-grid .result-card {
+        max-width: 196px;
+        margin-inline: auto;
+    }
 
-    /* Kartu mengikuti .candidate-card: satu blok foto utuh, nama dan angka
-       ditumpuk di kaki foto. Tanpa hover/selected — layar ini cuma dibaca. */
+    /* ==== Kartu dasar ================================================== */
+    /* Mengikuti .candidate-card: satu blok foto utuh, nama dan angka ditumpuk
+       di kaki foto. Tanpa hover/selected — layar ini cuma dibaca. */
     .result-card {
         display: block;
         background: var(--paper);
@@ -127,6 +149,188 @@
         text-transform: uppercase;
         color: rgba(255, 255, 255, 0.75);
     }
+
+    /* ==== Babak 1: terkunci ============================================ */
+    /* Papan diburamkan, bukan disembunyikan: penonton tahu ada sepuluh kandidat
+       di baliknya, tapi belum bisa membaca satu angka pun. */
+    .is-locked .result-grid {
+        filter: blur(10px) saturate(0.85);
+        transform: scale(0.98);
+        opacity: 0.75;
+        pointer-events: none;
+        transition: filter .8s ease, transform .8s ease, opacity .8s ease;
+    }
+    .result-lock {
+        position: absolute;
+        inset: 0;
+        z-index: 3;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        border: 0;
+        border-radius: 20px;
+        background: transparent;
+        color: var(--ink);
+        cursor: pointer;
+        transition: opacity .5s ease;
+    }
+    .result-lock[hidden] { display: none; }
+    .result-lock-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 112px;
+        height: 112px;
+        border-radius: 50%;
+        font-size: 46px;
+        color: #fff;
+        background: linear-gradient(180deg, var(--accent-2) 0%, var(--accent) 100%);
+        box-shadow: 0 18px 40px -12px rgba(16, 24, 40, 0.55);
+        animation: lock-breathe 2.4s ease-in-out infinite;
+    }
+    .result-lock-text {
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        text-shadow: 0 1px 12px rgba(255, 255, 255, 0.95);
+    }
+    .result-lock:hover .result-lock-icon { transform: scale(1.06); }
+    .result-lock:focus-visible { box-shadow: var(--ring); outline: none; }
+    /* Denyut pelan supaya penonton paham gemboknya bisa diklik. */
+    @keyframes lock-breathe {
+        0%, 100% { transform: scale(1);    box-shadow: 0 18px 40px -12px rgba(16, 24, 40, 0.55); }
+        50%      { transform: scale(1.07); box-shadow: 0 22px 52px -12px rgba(46, 107, 212, 0.65); }
+    }
+    /* Gembok terbuka sesaat sebelum angka mulai berputar. */
+    .result-lock.is-opening {
+        opacity: 0;
+        pointer-events: none;
+    }
+    .result-lock.is-opening .result-lock-icon { animation: none; transform: scale(1.5) rotate(-12deg); }
+
+    /* ==== Babak 2: mengocok ============================================ */
+    .is-rolling .result-count { color: #fff; opacity: .92; }
+    .is-rolling .result-card { animation: card-jitter .18s linear infinite; }
+    /* Tiap kartu digeser fasenya lewat delay negatif supaya getarnya tidak
+       serempak — kalau serempak, yang bergetar terbaca sebagai papannya. */
+    .is-rolling .col:nth-child(3n)   .result-card { animation-delay: -.06s; }
+    .is-rolling .col:nth-child(3n+1) .result-card { animation-delay: -.12s; }
+    @keyframes card-jitter {
+        0%, 100% { transform: translate3d(0, 0, 0); }
+        25%      { transform: translate3d(-1px, 1px, 0); }
+        75%      { transform: translate3d(1px, -1px, 0); }
+    }
+    /* Angka mendarat di nilai aslinya — sekali sentak, lalu diam. */
+    .result-count.is-landed { animation: count-pop .45s cubic-bezier(.2, 1.4, .4, 1); }
+    @keyframes count-pop {
+        0%   { transform: scale(1); }
+        45%  { transform: scale(1.28); }
+        100% { transform: scale(1); }
+    }
+
+    /* ==== Babak 3: terbuka ============================================= */
+    /* Sembilan yang kalah memudar dan mengecil; stagger diatur dari JS lewat
+       custom property --i supaya urutan padamnya terbaca sebagai gelombang. */
+    .col.is-out {
+        animation: card-out .55s ease forwards;
+        animation-delay: calc(var(--i, 0) * .07s);
+        pointer-events: none;
+    }
+    @keyframes card-out {
+        to { opacity: 0; transform: scale(0.86) translateY(14px); filter: blur(6px); }
+    }
+
+    .result-final { display: none; }
+    .result-final.is-shown { display: block; }
+
+    /* Panggung pemenang: kartu yang sama, dibesarkan dan ditengahkan. */
+    .result-spotlight {
+        display: flex;
+        justify-content: center;
+        animation: spotlight-in .9s cubic-bezier(.16, 1, .3, 1) both;
+    }
+    .result-spotlight .result-card {
+        width: 244px;
+        border-color: var(--accent-2);
+        box-shadow: 0 0 0 4px var(--accent-soft), 0 32px 64px -16px rgba(16, 24, 40, 0.45);
+    }
+    /* Pemenang dibaca dari jauh, jadi tulisannya naik kelas — bukan cuma
+       kartunya yang membesar. */
+    .result-spotlight .result-name  { font-size: 23px; }
+    .result-spotlight .result-company { font-size: 13px; margin-top: 5px; }
+    .result-spotlight .result-count { font-size: 46px; margin-top: 8px; padding-top: 8px; }
+    .result-spotlight .result-unit  { font-size: 13px; }
+    .result-spotlight .result-label { padding: 16px 14px 18px; }
+    @keyframes spotlight-in {
+        from { opacity: 0; transform: scale(0.55); }
+        to   { opacity: 1; transform: scale(1); }
+    }
+
+    /* Pita "terfavorit" di atas kartu pemenang. */
+    .result-crown {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        margin-bottom: 12px;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--accent);
+        text-shadow: 0 1px 12px rgba(255, 255, 255, 0.95);
+        animation: spotlight-in .9s cubic-bezier(.16, 1, .3, 1) both;
+        animation-delay: .25s;
+    }
+    .result-crown i { font-size: 22px; color: #E9B949; }
+
+    /* Sembilan sisanya: satu baris kecil, cuma pelengkap konteks. */
+    .result-runners {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 20px;
+        padding-top: 18px;
+        border-top: 1px solid var(--glass-line);
+        animation: runners-in .7s ease both;
+        animation-delay: .7s;
+    }
+    .result-runners .result-card { width: 104px; }
+    .result-runners .result-label { padding: 8px 6px 9px; }
+    .result-runners .result-name  { font-size: 11px; }
+    .result-runners .result-company { display: none; }
+    .result-runners .result-count {
+        font-size: 18px;
+        margin-top: 5px;
+        padding-top: 5px;
+    }
+    .result-runners .result-unit { display: none; }
+    @keyframes runners-in {
+        from { opacity: 0; transform: translateY(18px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Layar yang lebih pendek: kartu pemenang dikecilkan supaya baris sembilan
+       sisanya tidak terdorong keluar layar. */
+    @media (max-height: 800px) {
+        .result-grid .result-card { max-width: 168px; }
+        .result-spotlight .result-card { width: 208px; }
+        .result-spotlight .result-count { font-size: 38px; }
+        .result-runners .result-card { width: 84px; }
+    }
+
+    /* Semua gerak di atas hanya hiasan; kalau penonton minta gerak dikurangi,
+       babaknya tetap jalan, cuma tanpa animasi. */
+    @media (prefers-reduced-motion: reduce) {
+        .result-lock-icon, .result-spotlight, .result-crown, .result-runners,
+        .col.is-out, .is-rolling .result-card, .result-count.is-landed {
+            animation: none !important;
+        }
+        .col.is-out { opacity: 0; }
+    }
 </style>
 @endpush
 
@@ -138,8 +342,15 @@
                 <h1 class="result-title">{{ $nama_acara }}</h1>
             </header>
 
-            <div class="result-board floating-panel">
-                <div class="row row-cols-5 g-4">
+            <div class="result-board floating-panel" id="result-board">
+                {{-- Gembok disisipkan JS-lah yang menyalakannya (atribut hidden
+                     dilepas di result.js). Tanpa JS, papan tampil apa adanya. --}}
+                <button type="button" class="result-lock" id="result-lock" hidden>
+                    <span class="result-lock-icon"><i class="bi bi-lock-fill"></i></span>
+                    <span class="result-lock-text">Klik untuk membuka hasil</span>
+                </button>
+
+                <div class="row row-cols-5 g-4" id="result-grid">
                     @foreach($candidates as $candidate)
                         <div class="col">
                             <div class="result-card h-100">
@@ -150,7 +361,9 @@
                                         @if($candidate->company)
                                             <span class="result-company">{{ $candidate->company }}</span>
                                         @endif
-                                        <span class="result-count">{{ $candidate->votes_count }}</span>
+                                        {{-- data-count dibaca result.js: nilai asli tetap ada di DOM
+                                             sementara teksnya disamarkan selama babak terkunci. --}}
+                                        <span class="result-count" data-count="{{ $candidate->votes_count }}">{{ $candidate->votes_count }}</span>
                                         <span class="result-unit">suara</span>
                                     </div>
                                 </div>
@@ -158,8 +371,24 @@
                         </div>
                     @endforeach
                 </div>
+
+                {{-- Panggung akhir. Isinya disalin dari grid di atas oleh result.js
+                     setelah gembok dibuka, jadi tidak ada markup kandidat yang
+                     ditulis dua kali. --}}
+                <div class="result-final" id="result-final" aria-live="polite">
+                    <div class="result-crown">
+                        <i class="bi bi-trophy-fill"></i>
+                        <span>Relawan terfavorit</span>
+                    </div>
+                    <div class="result-spotlight" id="result-spotlight"></div>
+                    <div class="result-runners" id="result-runners"></div>
+                </div>
             </div>
         </div>
     </div>
 </main>
 @endsection
+
+@push('scripts')
+<script src="{{ asset('js/result.js') }}"></script>
+@endpush
